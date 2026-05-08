@@ -1,0 +1,50 @@
+{
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "bind": "loopback",
+    "auth": {
+      "mode": "none"
+    },
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "__MEMENTO_WORKSPACE__",
+      "model": {
+        "primary": "openai/gpt-4o-mini"
+      },
+      "models": {
+        "openai/gpt-4o-mini": {
+          "alias": "GPT-4o mini"
+        }
+      },
+      "memorySearch": {
+        "provider": "openai",
+        "model": "text-embedding-3-small"
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "openai": {
+        "api": "openai-completions",
+        "baseUrl": "https://api.openai.com/v1",
+        "apiKey": "${OPENAI_API_KEY}",
+        "models": [
+          {
+            "id": "gpt-4o-mini",
+            "name": "GPT-4o mini",
+            "contextWindow": 128000
+          }
+        ]
+      }
+    }
+  }
+}
