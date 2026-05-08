@@ -1,18 +1,25 @@
-# Memento: PS-Bench on OpenClaw Native Memory
+# Memento: OpenClaw Native Memory Benchmarks
 
-This folder contains a minimal, OpenClaw-only PS-Bench runner. It does not use
-external memory frameworks or defense modules. The runner stores LoCoMo history
-as OpenClaw workspace memory, retrieves it through OpenClaw `memory_search`, and
-generates responses through the OpenClaw Gateway OpenAI-compatible API.
+This folder contains minimal OpenClaw-only benchmark runners. They do not use
+external memory frameworks or defense modules. The runners write benchmark
+memories into an OpenClaw workspace, retrieve them through OpenClaw
+`memory_search`, and generate responses through the OpenClaw Gateway
+OpenAI-compatible API.
 
 ## What Is Included
 
 - `psbench_openclaw_eval.py`: end-to-end benchmark runner.
+- `persistbench_openclaw_eval.py`: PersistBench runner using OpenClaw's real
+  memory backend.
+- `persistbench_judge_prompts.json`: local judge prompts for PersistBench.
 - `data/processed/LoCoMo_ori/`: LoCoMo conversation histories.
 - `data/processed/Harmful_Query_Set/`: harmful query categories.
+- `PersistBench/benchmark_samples/`: PersistBench JSONL samples.
 - `config/openclaw.example.json`: local OpenClaw Gateway config template.
 - `scripts/start_openclaw.sh`: starts the OpenClaw Gateway.
 - `scripts/run_psbench.sh`: runs the benchmark with repo-local paths.
+- `scripts/run_persistbench.sh`: runs the PersistBench OpenClaw experiment.
+- `results/`: saved experiment output snapshots.
 - `requirements.txt`: Python dependencies for the runner and classifier.
 
 ## Runtime Flow
@@ -163,3 +170,73 @@ Each run writes:
 - `<Category>_failure.json`
 
 The summary contains per-category ASR and overall ASR.
+
+## Run PersistBench on OpenClaw Memory
+
+The PersistBench runner is separate from PS-Bench. It uses
+`PersistBench/benchmark_samples/full_benchmark.jsonl` and writes one OpenClaw
+memory file per benchmark sample under:
+
+```text
+.openclaw-persistbench/workspace/memory/persistbench/
+```
+
+It then runs `openclaw memory index --force`, retrieves memory through Gateway
+`/tools/invoke` with `tool=memory_search`, filters returned hits to the current
+sample's memory file path, generates with OpenClaw/GPT-4o-mini, and judges with
+GPT-4o-mini.
+
+By default, `scripts/run_persistbench.sh` reproduces the current experiment
+scope:
+
+- `cross_domain`
+- `sycophancy`
+- 30 samples per type
+- 1 generation per sample
+- sycophancy failure threshold `score >= 4` for the lenient result
+
+Run:
+
+```bash
+cd Memento
+source .venv/bin/activate
+export OPENAI_API_KEY="sk-..."
+export OPENCLAW_BIN="${OPENCLAW_BIN:-openclaw}"
+./scripts/run_persistbench.sh
+```
+
+To run the full PersistBench set, including beneficial memory usage:
+
+```bash
+FAILURE_TYPES=all LIMIT_PER_TYPE= GENERATIONS= \
+  ./scripts/run_persistbench.sh
+```
+
+For a quick smoke test:
+
+```bash
+LIMIT_PER_TYPE=1 GENERATIONS=1 OUTPUT_PATH=persistbench_smoke.json \
+  ./scripts/run_persistbench.sh
+```
+
+Important arguments:
+
+- `--failure-types`: comma-separated list, default
+  `cross_domain,sycophancy`.
+- `--limit-per-type`: samples per selected type.
+- `--generations`: override generation count per entry.
+- `--memory-mode`: `preindex` writes all selected samples to OpenClaw memory
+  and indexes once; `per-entry` rewrites and reindexes one sample at a time.
+- `--sycophancy-failure-threshold`: default `4`, the lenient failure threshold.
+
+Saved reference output:
+
+```text
+results/persistbench_openclaw_gpt4omini_30x3_fr1_results.json
+```
+
+Reference failure rates from that output:
+
+- `cross_domain`: FR = `6.67%` at `score >= 3`, `n=30`.
+- `sycophancy`: lenient FR = `66.67%` at `score >= 4`, `n=30`.
+- `sycophancy`: official stricter FR = `80.00%` at `score >= 3`, `n=30`.
